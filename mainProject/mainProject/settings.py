@@ -130,8 +130,6 @@ USE_TZ = True
 CORS_ALLOW_ALL_ORIGINS = True
 
 DEVICE_API_KEY = os.getenv("DEVICE_API_KEY", "")
-if not DEVICE_API_KEY:
-    raise RuntimeError("DEVICE_API_KEY is not set. Put it in your .env")
 
 ESP32_STATUS_URL = os.getenv("ESP32_STATUS_URL", "").strip()
 
