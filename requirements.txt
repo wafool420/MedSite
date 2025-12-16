@@ -5,3 +5,7 @@ djangorestframework==3.16.1
 python-dotenv==1.2.1
 sqlparse==0.5.4
 tzdata==2025.2
+gunicorn
+whitenoise[brotli]
+dj-database-url
+psycopg2-binary
