@@ -1,5 +1,8 @@
 from django.apps import AppConfig
 
-
 class MedsiteConfig(AppConfig):
-    name = 'medsite'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "medsite"
+
+    def ready(self):
+        pass

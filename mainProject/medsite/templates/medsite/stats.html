@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Live Monitor - {{ patient.name }}</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    body { background: #f6f7fb; }
+    .card-soft { border: 1px solid rgba(0,0,0,.06); border-radius: 18px; box-shadow: 0 8px 28px rgba(0,0,0,.06); }
+    .title-stack { font-weight: 900; letter-spacing: -0.02em; line-height: .9; font-size: 54px; }
+    .muted { color: rgba(0,0,0,.55); }
+    .metric-label { font-size: 14px; color: rgba(0,0,0,.55); }
+    .metric-value { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
+    .metric-value.small { font-size: 28px; }
+    .divider { height: 1px; background: rgba(0,0,0,.10); margin: 18px 0; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 999px; display:inline-block; }
+    .status-dot.ok { background: #16a34a; }
+    .status-dot.bad { background: #dc2626; }
+
+    /* Drawer */
+    .drawer-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      display:none; z-index: 999;
+    }
+    .drawer {
+      position: fixed; top: 0; right: 0; height: 100vh; width: 420px; max-width: 92vw;
+      background: #fff; box-shadow: -20px 0 60px rgba(0,0,0,.18);
+      transform: translateX(110%); transition: transform .2s ease;
+      z-index: 1000; padding: 18px;
+      display:flex; flex-direction:column; gap: 14px;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-backdrop.show { display:block; }
+    .drawer h5 { margin: 0; font-weight: 900; letter-spacing: -0.02em; }
+    .pill-code {
+      display:inline-block; padding: 6px 10px; border-radius: 999px;
+      background: #f1f5f9; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+    }
+    .tiny { font-size: 12px; color: rgba(0,0,0,.55); }
+
+    .chart-wrap { height: 520px; }
+    @media (max-width: 1200px){
+      .chart-wrap { height: 440px; }
+      .title-stack { font-size: 46px; }
+    }
+    @media (max-width: 992px){
+      .chart-wrap { height: 360px; }
+      .title-stack { font-size: 40px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container-fluid py-3 px-3 px-md-4">
+    <!-- Top bar -->
+    <div class="topbar mb-3">
+      <div class="d-flex align-items-start gap-3">
+        <button class="btn btn-outline-dark" type="button" onclick="goBack()">
+          ← Back
+        </button>
+        <div>
+          <div class="h4 fw-bold mb-0">Live Monitor</div>
+          <div class="muted">{{ patient.name }}</div>
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center gap-2">
+          <span id="connDot" class="status-dot bad"></span>
+          <span id="connText" class="fw-semibold">Disconnected</span>
+        </div>
+        <button class="btn btn-dark" type="button" onclick="openDrawer()">Patient Info</button>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <!-- Left metrics -->
+      <div class="col-12 col-lg-4 col-xxl-3">
+        <div class="card card-soft p-4 h-100">
+          <div class="title-stack">MedSite<br>Heart<br>Monitor</div>
+
+          <div class="mt-4">
+            <div class="metric-label">IR</div>
+            <div class="metric-value" id="vIr">—</div>
+          </div>
+
+          <div class="mt-3">
+            <div class="metric-label">Red</div>
+            <div class="metric-value" id="vRed">—</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="mt-2">
+            <div class="metric-label">Heart Rate (BPM)</div>
+            <div class="metric-value" id="vBpm">N/A</div>
+          </div>
+
+          <div class="mt-4">
+            <div class="metric-label">Oxygen Saturation (SpO₂)</div>
+            <div class="metric-value" id="vSpO2">N/A</div>
+          </div>
+
+          <div class="mt-4">
+            <div class="metric-label">Blood Pressure (est.)</div>
+            <div class="metric-value small" id="vBp">N/A</div>
+            <div class="tiny">SBP/DBP</div>
+          </div>
+
+          <div class="mt-4">
+            <div class="metric-label">Temperature (°C, est.)</div>
+            <div class="metric-value" id="vTemp">N/A</div>
+          </div>
+
+          <div class="mt-4 tiny">
+            <div>Last updated: <span id="vUpdated">—</span></div>
+            <div class="mt-1">Endpoint: <code class="text-danger">{% if endpoint %}{{ endpoint }}{% else %}{% url 'api_latest' patient.public_code %}{% endif %}</code></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trend chart -->
+      <div class="col-12 col-lg-8 col-xxl-9">
+        <div class="card card-soft p-4">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-2">
+            <div class="h5 fw-bold mb-0">Trend</div>
+
+            <div class="d-flex align-items-center gap-2">
+              <div class="muted">Graph:</div>
+              <select id="metricSelect" class="form-select" style="min-width: 260px;">
+                <option value="ir">IR</option>
+                <option value="red">Red</option>
+                <option value="bpm">Heart Rate (BPM)</option>
+                <option value="spo2">SpO₂ (%)</option>
+                <option value="bp">Blood Pressure (BP, est.)</option>
+                <option value="temp">Temperature (°C)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Reading history -->
+        <div class="card card-soft p-4 mt-3">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <div class="h5 fw-bold mb-0">Reading History</div>
+            <div class="tiny">Newest first (auto-updates)</div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr class="tiny">
+                  <th style="min-width:170px;">Time</th>
+                  <th>IR</th>
+                  <th>Red</th>
+                  <th>BPM</th>
+                  <th>SpO₂</th>
+                  <th>BP</th>
+                  <th>Temp</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody">
+                <tr><td colspan="7" class="muted">No readings yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Drawer -->
+  <div id="drawerBackdrop" class="drawer-backdrop" onclick="closeDrawer()"></div>
+  <div id="drawer" class="drawer" aria-hidden="true">
+    <div class="d-flex align-items-start justify-content-between">
+      <div>
+        <h5>{{ patient.name }}</h5>
+        <div class="muted">Patient Information</div>
+      </div>
+      <button class="btn btn-link text-dark fs-3 lh-1 p-0" type="button" onclick="closeDrawer()">×</button>
+    </div>
+
+    <div class="card card-soft p-3">
+      <div class="row g-3">
+        <div class="col-6">
+          <div class="tiny">Age</div>
+          <div class="fw-bold">{{ patient.age|default:"—" }}</div>
+        </div>
+        <div class="col-6">
+          <div class="tiny">Emergency #</div>
+          <div class="fw-bold">{{ patient.emergency_number|default:"—" }}</div>
+        </div>
+
+        {% if can_view_private %}
+        <div class="col-12">
+          <div class="tiny">Address</div>
+          <div class="fw-semibold">{{ patient.address|default:"—" }}</div>
+        </div>
+        {% endif %}
+
+        <div class="col-12 mt-2">
+          <div class="tiny">Public Code</div>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span id="publicCode" class="pill-code">{{ patient.public_code }}</span>
+            <button class="btn btn-sm btn-outline-dark" type="button" onclick="copyPublicCode()">Copy</button>
+          </div>
+        </div>
+
+        <div class="col-12 mt-2">
+          <div class="tiny">Share Monitor Link</div>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span id="shareLink" class="pill-code">
+              {% if share_url %}{{ share_url }}{% else %}{% url 'public_monitor' patient.public_code %}{% endif %}
+            </span>
+            <button class="btn btn-sm btn-outline-dark" type="button" onclick="copyShare()">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if can_view_private %}
+      <a class="btn btn-outline-dark w-100 py-2" href="{% url 'patient_detail' patient.id %}">Open Patient Detail</a>
+      <a class="btn btn-outline-secondary w-100 py-2" href="{% url 'home' %}">Back to Dashboard</a>
+    {% else %}
+      <button class="btn btn-outline-secondary w-100 py-2" type="button" onclick="goBack()">Back</button>
+    {% endif %}
+  </div>
+
+<script>
+  // ---------------- Back button (works even if user opened share link directly)
+  function goBack(){
+    if (window.history.length > 1) window.history.back();
+    else window.location.href = "{% url 'home' %}";
+  }
+
+  // ---------------- Drawer
+  const drawer = document.getElementById("drawer");
+  const drawerBackdrop = document.getElementById("drawerBackdrop");
+  function openDrawer(){
+    drawer.classList.add("open");
+    drawerBackdrop.classList.add("show");
+    drawer.setAttribute("aria-hidden", "false");
+  }
+  function closeDrawer(){
+    drawer.classList.remove("open");
+    drawerBackdrop.classList.remove("show");
+    drawer.setAttribute("aria-hidden", "true");
+  }
+
+  function copyPublicCode(){
+    const txt = (document.getElementById("publicCode")?.innerText || "").trim();
+    if (!txt) return alert("No public code found.");
+    navigator.clipboard.writeText(txt);
+  }
+  function copyShare(){
+    const txt = (document.getElementById("shareLink")?.innerText || "").trim();
+    if (!txt) return alert("No share link found.");
+    navigator.clipboard.writeText(txt);
+  }
+
+  // ---------------- Endpoint
+  const ENDPOINT = "{% if endpoint %}{{ endpoint }}{% else %}{% url 'api_latest' patient.public_code %}{% endif %}";
+
+  // ---------------- UI refs
+  const connDot = document.getElementById("connDot");
+  const connText = document.getElementById("connText");
+  const vUpdated = document.getElementById("vUpdated");
+
+  const vIr = document.getElementById("vIr");
+  const vRed = document.getElementById("vRed");
+  const vBpm = document.getElementById("vBpm");
+  const vSpO2 = document.getElementById("vSpO2");
+  const vBp = document.getElementById("vBp");
+  const vTemp = document.getElementById("vTemp");
+
+  // ---------------- Data buffers
+  const MAX_POINTS = 60;      // chart points
+  const MAX_HISTORY = 20;     // table rows
+
+  let lastCreatedAt = null;
+
+  const tLabels = [];
+  const dataIR = [];
+  const dataRED = [];
+  const dataBPM = [];
+  const dataSPO2 = [];
+  const dataSBP = [];
+  const dataDBP = [];
+  const dataTEMP = [];
+
+  const historyRows = []; // newest first objects
+
+  // ---------------- Chart
+  const ctx = document.getElementById("trendChart").getContext("2d");
+
+  const COLOR = {
+    ir:   "#111827", // near-black
+    red:  "#ef4444", // red
+    bpm:  "#16a34a", // green
+    spo2: "#6d28d9", // purple
+    sbp:  "#ef4444", // red
+    dbp:  "#2563eb", // blue
+    temp: "#0ea5e9"  // sky
+  };
+
+  const chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: tLabels,
+      datasets: [{
+        label: "IR",
+        data: dataIR,
+        borderColor: COLOR.ir,
+        backgroundColor: "rgba(17,24,39,0.10)",
+        tension: 0.25,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: true }
+      },
+      scales: {
+        x: { ticks: { maxRotation: 0, autoSkip: true } },
+        y: { beginAtZero: false }
+      }
+    }
+  });
+
+  const metricSelect = document.getElementById("metricSelect");
+  metricSelect.addEventListener("change", () => rebuildDatasets());
+
+  function rebuildDatasets(){
+    const m = metricSelect.value;
+
+    if (m === "bp"){
+      chart.data.datasets = [
+        {
+          label: "SBP (est.)",
+          data: dataSBP,
+          borderColor: COLOR.sbp,
+          backgroundColor: "rgba(239,68,68,0.10)",
+          tension: 0.25,
+          pointRadius: 0
+        },
+        {
+          label: "DBP (est.)",
+          data: dataDBP,
+          borderColor: COLOR.dbp,
+          backgroundColor: "rgba(37,99,235,0.10)",
+          tension: 0.25,
+          pointRadius: 0
+        }
+      ];
+    } else {
+      const map = {
+        ir:   { label: "IR", data: dataIR,   color: COLOR.ir,   bg: "rgba(17,24,39,0.10)" },
+        red:  { label: "Red", data: dataRED, color: COLOR.red,  bg: "rgba(239,68,68,0.10)" },
+        bpm:  { label: "Heart Rate (BPM)", data: dataBPM, color: COLOR.bpm,  bg: "rgba(22,163,74,0.10)" },
+        spo2: { label: "SpO₂ (%)", data: dataSPO2, color: COLOR.spo2, bg: "rgba(109,40,217,0.10)" },
+        temp: { label: "Temperature (°C)", data: dataTEMP, color: COLOR.temp, bg: "rgba(14,165,233,0.10)" }
+      };
+      const cfg = map[m];
+      chart.data.datasets = [{
+        label: cfg.label,
+        data: cfg.data,
+        borderColor: cfg.color,
+        backgroundColor: cfg.bg,
+        tension: 0.25,
+        pointRadius: 0
+      }];
+    }
+    chart.update();
+  }
+
+  function setConnected(ok){
+    connDot.classList.toggle("ok", ok);
+    connDot.classList.toggle("bad", !ok);
+    connText.textContent = ok ? "Connected" : "Disconnected";
+  }
+
+  function fmtTime(iso){
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch(e){
+      return iso;
+    }
+  }
+
+  function fmtFull(iso){
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString();
+    } catch(e){
+      return iso;
+    }
+  }
+
+  function fmtNum(v){
+    if (v === null || v === undefined) return null;
+    if (typeof v === "number" && Number.isNaN(v)) return null;
+    return v;
+  }
+
+  function pushLimited(arr, val, max){
+    arr.push(val);
+    while (arr.length > max) arr.shift();
+  }
+
+  function updateHistoryTable(){
+    const body = document.getElementById("historyBody");
+    if (!historyRows.length){
+      body.innerHTML = `<tr><td colspan="7" class="muted">No readings yet.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = historyRows.map(r => {
+      const bp = (r.sbp != null && r.dbp != null) ? `${r.sbp}/${r.dbp}` : "N/A";
+      const spo2 = (r.spo2 != null) ? `${Number(r.spo2).toFixed(1)}%` : "N/A";
+      const temp = (r.temp != null) ? `${Number(r.temp).toFixed(1)}°C` : "N/A";
+      return `
+        <tr class="tiny">
+          <td>${fmtFull(r.created_at)}</td>
+          <td>${r.ir ?? "—"}</td>
+          <td>${r.red ?? "—"}</td>
+          <td>${r.bpm ?? "N/A"}</td>
+          <td>${spo2}</td>
+          <td>${bp}</td>
+          <td>${temp}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  async function poll(){
+    try{
+      const res = await fetch(ENDPOINT, { cache: "no-store" });
+      const data = await res.json();
+
+      if (data.detail && String(data.detail).toLowerCase().includes("unavailable")){
+        setConnected(false);
+        return;
+      }
+
+      // If no created_at, still treat as disconnected-ish
+      if (!data.created_at){
+        setConnected(false);
+        return;
+      }
+
+      setConnected(true);
+
+      // Update left panel (always)
+      vIr.textContent = (data.ir != null) ? data.ir : "—";
+      vRed.textContent = (data.red != null) ? data.red : "—";
+      vBpm.textContent = (data.bpm != null) ? data.bpm : "N/A";
+      vSpO2.textContent = (data.spo2 != null) ? `${Number(data.spo2).toFixed(1)} %` : "N/A";
+
+      if (data.sbp != null && data.dbp != null) vBp.textContent = `${data.sbp}/${data.dbp}`;
+      else vBp.textContent = "N/A";
+
+      vTemp.textContent = (data.temp != null) ? `${Number(data.temp).toFixed(1)} °C` : "N/A";
+      vUpdated.textContent = data.created_at ? data.created_at : "—";
+
+      // Only append if it's a NEW reading timestamp
+      if (lastCreatedAt !== data.created_at){
+        lastCreatedAt = data.created_at;
+
+        // Chart labels (use short time)
+        pushLimited(tLabels, fmtTime(data.created_at), MAX_POINTS);
+
+        // Push each metric (use null for missing so chart breaks line nicely)
+        pushLimited(dataIR,   fmtNum(data.ir),   MAX_POINTS);
+        pushLimited(dataRED,  fmtNum(data.red),  MAX_POINTS);
+        pushLimited(dataBPM,  fmtNum(data.bpm),  MAX_POINTS);
+        pushLimited(dataSPO2, fmtNum(data.spo2), MAX_POINTS);
+        pushLimited(dataSBP,  fmtNum(data.sbp),  MAX_POINTS);
+        pushLimited(dataDBP,  fmtNum(data.dbp),  MAX_POINTS);
+        pushLimited(dataTEMP, fmtNum(data.temp), MAX_POINTS);
+
+        chart.update();
+
+        // History (newest first)
+        historyRows.unshift({
+          created_at: data.created_at,
+          ir: data.ir ?? null,
+          red: data.red ?? null,
+          bpm: data.bpm ?? null,
+          spo2: data.spo2 ?? null,
+          sbp: data.sbp ?? null,
+          dbp: data.dbp ?? null,
+          temp: data.temp ?? null
+        });
+        while (historyRows.length > MAX_HISTORY) historyRows.pop();
+        updateHistoryTable();
+      }
+    } catch(err){
+      setConnected(false);
+    }
+  }
+
+  // init
+  rebuildDatasets();
+  poll();
+  setInterval(poll, 1000);
+</script>
+</body>
+</html>
