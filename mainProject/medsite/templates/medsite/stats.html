@@ -284,50 +284,6 @@
   const vBp = document.getElementById("vBp");
   const vTemp = document.getElementById("vTemp");
 
-  // ---------------- Connection sensitivity
-  const STALE_MS = 3000; // if last reading is older than this, mark disconnected
-
-  function setConnected(ok, label){
-    connDot.classList.toggle("ok", ok);
-    connDot.classList.toggle("bad", !ok);
-    connText.textContent = label || (ok ? "Connected" : "Disconnected");
-  }
-
-  function updateConnectionStatus(data){
-    // API unavailable cases
-    if (data?.detail && String(data.detail).toLowerCase().includes("unavailable")){
-      setConnected(false, "Disconnected");
-      return false;
-    }
-
-    // no timestamp => disconnected
-    if (!data?.created_at){
-      setConnected(false, "Disconnected");
-      return false;
-    }
-
-    // stale readings => disconnected
-    const age = Date.now() - new Date(data.created_at).getTime();
-    if (Number.isFinite(age) && age > STALE_MS){
-      setConnected(false, "Disconnected (No recent data)");
-      return false;
-    }
-
-    // Prefer explicit finger boolean (best)
-    if (typeof data.finger === "boolean"){
-      if (data.finger) setConnected(true,  "Connected (Finger on sensor)");
-      else             setConnected(false, "Disconnected (Finger off sensor)");
-      return data.finger;
-    }
-
-    // Fallback if API doesn't send finger:
-    const guessOn = (data.bpm != null) || (data.ir != null && Number(data.ir) > 8000);
-    setConnected(guessOn,
-      guessOn ? "Connected (Finger on sensor)" : "Disconnected (Finger off sensor)"
-    );
-    return guessOn;
-  }
-
   // ---------------- Data buffers
   const MAX_POINTS = 60;      // chart points
   const MAX_HISTORY = 20;     // table rows
@@ -432,6 +388,12 @@
     chart.update();
   }
 
+  function setConnected(ok){
+    connDot.classList.toggle("ok", ok);
+    connDot.classList.toggle("bad", !ok);
+    connText.textContent = ok ? "Connected" : "Disconnected";
+  }
+
   function fmtTime(iso){
     if (!iso) return "—";
     try {
@@ -493,8 +455,18 @@
       const res = await fetch(ENDPOINT, { cache: "no-store" });
       const data = await res.json();
 
-      // ✅ connection status is now based on finger + staleness
-      updateConnectionStatus(data);
+      if (data.detail && String(data.detail).toLowerCase().includes("unavailable")){
+        setConnected(false);
+        return;
+      }
+
+      // If no created_at, still treat as disconnected-ish
+      if (!data.created_at){
+        setConnected(false);
+        return;
+      }
+
+      setConnected(true);
 
       // Update left panel (always)
       vIr.textContent = (data.ir != null) ? data.ir : "—";
@@ -509,11 +481,13 @@
       vUpdated.textContent = data.created_at ? data.created_at : "—";
 
       // Only append if it's a NEW reading timestamp
-      if (data.created_at && lastCreatedAt !== data.created_at){
+      if (lastCreatedAt !== data.created_at){
         lastCreatedAt = data.created_at;
 
+        // Chart labels (use short time)
         pushLimited(tLabels, fmtTime(data.created_at), MAX_POINTS);
 
+        // Push each metric (use null for missing so chart breaks line nicely)
         pushLimited(dataIR,   fmtNum(data.ir),   MAX_POINTS);
         pushLimited(dataRED,  fmtNum(data.red),  MAX_POINTS);
         pushLimited(dataBPM,  fmtNum(data.bpm),  MAX_POINTS);
@@ -524,6 +498,7 @@
 
         chart.update();
 
+        // History (newest first)
         historyRows.unshift({
           created_at: data.created_at,
           ir: data.ir ?? null,
@@ -538,7 +513,7 @@
         updateHistoryTable();
       }
     } catch(err){
-      setConnected(false, "Disconnected");
+      setConnected(false);
     }
   }
 
