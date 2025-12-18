@@ -41,6 +41,8 @@
       display:inline-block; padding: 6px 10px; border-radius: 999px;
       background: #f1f5f9; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 13px;
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
     .tiny { font-size: 12px; color: rgba(0,0,0,.55); }
 
@@ -52,6 +54,14 @@
     @media (max-width: 992px){
       .chart-wrap { height: 360px; }
       .title-stack { font-size: 40px; }
+    }
+
+    /* Toast */
+    #toast{
+      position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
+      background:#111; color:#fff; padding:10px 14px; border-radius:12px;
+      box-shadow:0 10px 30px rgba(0,0,0,.18);
+      display:none; font-weight:800; z-index:2000; min-width:220px; text-align:center;
     }
   </style>
 </head>
@@ -120,7 +130,9 @@
 
           <div class="mt-4 tiny">
             <div>Last updated: <span id="vUpdated">—</span></div>
-            <div class="mt-1">Endpoint: <code class="text-danger">{% if endpoint %}{{ endpoint }}{% else %}{% url 'api_latest' patient.public_code %}{% endif %}</code></div>
+            <div class="mt-1">Endpoint:
+              <code class="text-danger">{% if endpoint %}{{ endpoint }}{% else %}{% url 'api_latest' patient.public_code %}{% endif %}</code>
+            </div>
           </div>
         </div>
       </div>
@@ -213,7 +225,7 @@
           <div class="tiny">Public Code</div>
           <div class="d-flex flex-wrap align-items-center gap-2">
             <span id="publicCode" class="pill-code">{{ patient.public_code }}</span>
-            <button class="btn btn-sm btn-outline-dark" type="button" onclick="copyPublicCode()">Copy</button>
+            <button class="btn btn-sm btn-outline-dark" type="button" onclick="copyPublicCode(this)">Copy</button>
           </div>
         </div>
 
@@ -223,7 +235,7 @@
             <span id="shareLink" class="pill-code">
               {% if share_url %}{{ share_url }}{% else %}{% url 'public_monitor' patient.public_code %}{% endif %}
             </span>
-            <button class="btn btn-sm btn-outline-dark" type="button" onclick="copyShare()">Copy</button>
+            <button class="btn btn-sm btn-outline-dark" type="button" onclick="copyShare(this)">Copy</button>
           </div>
         </div>
       </div>
@@ -236,6 +248,9 @@
       <button class="btn btn-outline-secondary w-100 py-2" type="button" onclick="goBack()">Back</button>
     {% endif %}
   </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
 
 <script>
   // ---------------- Back button (works even if user opened share link directly)
@@ -258,16 +273,89 @@
     drawer.setAttribute("aria-hidden", "true");
   }
 
-  function copyPublicCode(){
+  // ---------------- Toast + Copy helpers (works on http://192.168.x.x via fallback)
+  function showToast(msg, ok=true){
+    const t = document.getElementById("toast");
+    if (!t) return;
+    t.style.background = ok ? "#16a34a" : "#dc2626";
+    t.textContent = msg;
+    t.style.display = "block";
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(() => (t.style.display = "none"), 1400);
+  }
+
+  async function copyText(text){
+    // 1) Modern clipboard (often blocked on insecure origins)
+    try{
+      await navigator.clipboard.writeText(text);
+      return true;
+    }catch(e){}
+
+    // 2) Fallback: textarea + execCommand
+    try{
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "-1000px";
+      ta.style.left = "-1000px";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    }catch(e){
+      return false;
+    }
+  }
+
+  function flashCopyBtn(btn, ok){
+    if (!btn) return;
+    const old = btn.textContent || "Copy";
+    btn.textContent = ok ? "Copied!" : "Failed";
+    btn.classList.toggle("btn-success", ok);
+    btn.classList.toggle("btn-danger", !ok);
+    btn.classList.toggle("btn-outline-dark", false);
+    btn.disabled = true;
+
+    setTimeout(() => {
+      btn.textContent = old;
+      btn.classList.remove("btn-success","btn-danger");
+      btn.classList.add("btn-outline-dark");
+      btn.disabled = false;
+    }, 900);
+  }
+
+  async function copyPublicCode(btn){
     const txt = (document.getElementById("publicCode")?.innerText || "").trim();
-    if (!txt) return alert("No public code found.");
-    navigator.clipboard.writeText(txt);
+    if (!txt) { showToast("No public code found.", false); return; }
+    const ok = await copyText(txt);
+    flashCopyBtn(btn, ok);
+    showToast(ok ? "Public code copied ✅" : "Copy blocked — try long-press.", ok);
   }
-  function copyShare(){
-    const txt = (document.getElementById("shareLink")?.innerText || "").trim();
-    if (!txt) return alert("No share link found.");
-    navigator.clipboard.writeText(txt);
+
+  async function copyShare(btn){
+    const raw = (document.getElementById("shareLink")?.innerText || "").trim();
+    if (!raw) { showToast("No share link found.", false); return; }
+
+    // Ensure absolute URL (if template is /m/..., it becomes full)
+    const full = new URL(raw, window.location.origin).href;
+
+    const ok = await copyText(full);
+    flashCopyBtn(btn, ok);
+    showToast(ok ? "Share link copied ✅" : "Copy blocked — try long-press.", ok);
   }
+
+  // Make Share Monitor Link display as full URL (even if template gives /m/...)
+  (function normalizeShareLink(){
+    const el = document.getElementById("shareLink");
+    if (!el) return;
+    const raw = (el.innerText || "").trim();
+    if (!raw) return;
+    try {
+      el.textContent = new URL(raw, window.location.origin).href;
+    } catch(e) {}
+  })();
 
   // ---------------- Endpoint
   const ENDPOINT = "{% if endpoint %}{{ endpoint }}{% else %}{% url 'api_latest' patient.public_code %}{% endif %}";
@@ -305,13 +393,13 @@
   const ctx = document.getElementById("trendChart").getContext("2d");
 
   const COLOR = {
-    ir:   "#111827", // near-black
-    red:  "#ef4444", // red
-    bpm:  "#16a34a", // green
-    spo2: "#6d28d9", // purple
-    sbp:  "#ef4444", // red
-    dbp:  "#2563eb", // blue
-    temp: "#0ea5e9"  // sky
+    ir:   "#111827",
+    red:  "#ef4444",
+    bpm:  "#16a34a",
+    spo2: "#6d28d9",
+    sbp:  "#ef4444",
+    dbp:  "#2563eb",
+    temp: "#0ea5e9"
   };
 
   const chart = new Chart(ctx, {
@@ -332,9 +420,7 @@
       maintainAspectRatio: false,
       animation: false,
       interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: { display: true }
-      },
+      plugins: { legend: { display: true } },
       scales: {
         x: { ticks: { maxRotation: 0, autoSkip: true } },
         y: { beginAtZero: false }
@@ -460,7 +546,6 @@
         return;
       }
 
-      // If no created_at, still treat as disconnected-ish
       if (!data.created_at){
         setConnected(false);
         return;
@@ -468,7 +553,7 @@
 
       setConnected(true);
 
-      // Update left panel (always)
+      // Update left panel
       vIr.textContent = (data.ir != null) ? data.ir : "—";
       vRed.textContent = (data.red != null) ? data.red : "—";
       vBpm.textContent = (data.bpm != null) ? data.bpm : "N/A";
@@ -484,10 +569,8 @@
       if (lastCreatedAt !== data.created_at){
         lastCreatedAt = data.created_at;
 
-        // Chart labels (use short time)
         pushLimited(tLabels, fmtTime(data.created_at), MAX_POINTS);
 
-        // Push each metric (use null for missing so chart breaks line nicely)
         pushLimited(dataIR,   fmtNum(data.ir),   MAX_POINTS);
         pushLimited(dataRED,  fmtNum(data.red),  MAX_POINTS);
         pushLimited(dataBPM,  fmtNum(data.bpm),  MAX_POINTS);
@@ -498,7 +581,6 @@
 
         chart.update();
 
-        // History (newest first)
         historyRows.unshift({
           created_at: data.created_at,
           ir: data.ir ?? null,
