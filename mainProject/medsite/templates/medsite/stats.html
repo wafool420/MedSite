@@ -341,8 +341,9 @@
       <a class="btn btn-outline-dark w-100 py-2" href="{% url 'patient_detail' patient.id %}">Open Patient Detail</a>
       <a class="btn btn-outline-secondary w-100 py-2" href="{% url 'home' %}">Back to Dashboard</a>
     {% else %}
-      <button class="btn btn-outline-secondary w-100 py-2" type="button" onclick="goBack()">Back</button>
+      <button class="btn btn-outline-secondary w-100 py-2" type="button" onclick="closeDrawer()">Close</button>
     {% endif %}
+
   </div>
 
   <!-- Toast -->
