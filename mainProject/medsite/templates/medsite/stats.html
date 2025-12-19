@@ -9,18 +9,71 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
-    body { background: #f6f7fb; }
-    .card-soft { border: 1px solid rgba(0,0,0,.06); border-radius: 18px; box-shadow: 0 8px 28px rgba(0,0,0,.06); }
-    .title-stack { font-weight: 900; letter-spacing: -0.02em; line-height: .9; font-size: 54px; }
-    .muted { color: rgba(0,0,0,.55); }
-    .metric-label { font-size: 14px; color: rgba(0,0,0,.55); }
-    .metric-value { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
+    :root{
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: rgba(0,0,0,.55);
+      --border: rgba(0,0,0,.08);
+      --shadow: 0 10px 30px rgba(0,0,0,.07);
+      --r: 18px;
+    }
+
+    body { background: var(--bg); color: var(--text); }
+    .card-soft {
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      background: var(--card);
+    }
+
+    .title-stack { font-weight: 900; letter-spacing: -0.02em; line-height: .95; font-size: 54px; }
+    .muted { color: var(--muted); }
+
+    .metric-label { font-size: 14px; color: var(--muted); }
+    .metric-value { font-size: 34px; font-weight: 850; letter-spacing: -0.02em; }
     .metric-value.small { font-size: 28px; }
+    .tiny { font-size: 12px; color: var(--muted); }
+
     .divider { height: 1px; background: rgba(0,0,0,.10); margin: 18px 0; }
-    .topbar { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
+
+    /* Topbar */
+    .topbar {
+      display:flex; align-items:center; justify-content:space-between; gap: 12px;
+    }
+    .topbar-left, .topbar-right{
+      display:flex; align-items:center; gap: 12px;
+    }
+    .topbar-left { align-items:flex-start; }
     .status-dot { width: 10px; height: 10px; border-radius: 999px; display:inline-block; }
     .status-dot.ok { background: #16a34a; }
     .status-dot.bad { background: #dc2626; }
+
+    .status-pill{
+      display:flex; align-items:center; gap:10px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.8);
+      backdrop-filter: blur(6px);
+    }
+
+    /* Metrics blocks */
+    .metric-block + .metric-block { margin-top: 14px; }
+    .metrics-grid { display:block; }
+    .metric-span-2 { width: 100%; }
+
+    /* Chart */
+    .chart-wrap { height: 520px; }
+
+    @media (max-width: 1200px){
+      .chart-wrap { height: 440px; }
+      .title-stack { font-size: 46px; }
+    }
+    @media (max-width: 992px){
+      .chart-wrap { height: 360px; }
+      .title-stack { font-size: 40px; }
+    }
 
     /* Drawer */
     .drawer-backdrop {
@@ -44,17 +97,6 @@
       max-width: 100%;
       overflow-wrap: anywhere;
     }
-    .tiny { font-size: 12px; color: rgba(0,0,0,.55); }
-
-    .chart-wrap { height: 520px; }
-    @media (max-width: 1200px){
-      .chart-wrap { height: 440px; }
-      .title-stack { font-size: 46px; }
-    }
-    @media (max-width: 992px){
-      .chart-wrap { height: 360px; }
-      .title-stack { font-size: 40px; }
-    }
 
     /* Toast */
     #toast{
@@ -63,25 +105,72 @@
       box-shadow:0 10px 30px rgba(0,0,0,.18);
       display:none; font-weight:800; z-index:2000; min-width:220px; text-align:center;
     }
+
+    /* ✅ Mobile improvements */
+    @media (max-width: 576px){
+      .container-fluid { padding-left: 12px !important; padding-right: 12px !important; }
+
+      /* sticky top bar for quick access */
+      .topbar{
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: var(--bg);
+        padding: 10px 0;
+        flex-wrap: wrap;
+      }
+      .topbar-left, .topbar-right{
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .topbar-left .btn { padding: 8px 10px; border-radius: 14px; }
+      .topbar-right .btn { padding: 8px 12px; border-radius: 14px; }
+
+      .status-pill{ padding: 8px 10px; gap: 8px; }
+
+      .title-stack{ font-size: 34px; line-height: 1.0; }
+      .metric-value{ font-size: 26px; }
+      .metric-value.small{ font-size: 22px; }
+      .divider{ margin: 12px 0; }
+
+      /* turn metric blocks into a 2-col grid */
+      .metrics-grid{
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 14px;
+      }
+      .metric-block{ margin-top: 0 !important; }
+      .metric-span-2{ grid-column: 1 / -1; }
+
+      .chart-wrap{ height: 280px; }
+      #metricSelect{ min-width: 0 !important; width: 100%; }
+
+      /* drawer becomes full-screen */
+      .drawer{
+        width: 100vw;
+        max-width: 100vw;
+        padding: 16px;
+      }
+    }
   </style>
 </head>
 
 <body>
   <div class="container-fluid py-3 px-3 px-md-4">
+
     <!-- Top bar -->
     <div class="topbar mb-3">
-      <div class="d-flex align-items-start gap-3">
-        <button class="btn btn-outline-dark" type="button" onclick="goBack()">
-          ← Back
-        </button>
+      <div class="topbar-left">
+        <button class="btn btn-outline-dark" type="button" onclick="goBack()">← Back</button>
         <div>
           <div class="h4 fw-bold mb-0">Live Monitor</div>
           <div class="muted">{{ patient.name }}</div>
         </div>
       </div>
 
-      <div class="d-flex align-items-center gap-3">
-        <div class="d-flex align-items-center gap-2">
+      <div class="topbar-right">
+        <div class="status-pill">
           <span id="connDot" class="status-dot bad"></span>
           <span id="connText" class="fw-semibold">Disconnected</span>
         </div>
@@ -95,43 +184,50 @@
         <div class="card card-soft p-4 h-100">
           <div class="title-stack">MedSite<br>Heart<br>Monitor</div>
 
-          <div class="mt-4">
-            <div class="metric-label">IR</div>
-            <div class="metric-value" id="vIr">—</div>
-          </div>
+          <!-- ✅ Now becomes 2-column grid on phones -->
+          <div class="metrics-grid mt-4">
+            <div class="metric-block">
+              <div class="metric-label">IR</div>
+              <div class="metric-value" id="vIr">—</div>
+            </div>
 
-          <div class="mt-3">
-            <div class="metric-label">Red</div>
-            <div class="metric-value" id="vRed">—</div>
-          </div>
+            <div class="metric-block">
+              <div class="metric-label">Red</div>
+              <div class="metric-value" id="vRed">—</div>
+            </div>
 
-          <div class="divider"></div>
+            <div class="metric-block metric-span-2">
+              <div class="divider my-2"></div>
+            </div>
 
-          <div class="mt-2">
-            <div class="metric-label">Heart Rate (BPM)</div>
-            <div class="metric-value" id="vBpm">N/A</div>
-          </div>
+            <div class="metric-block">
+              <div class="metric-label">Heart Rate (BPM)</div>
+              <div class="metric-value" id="vBpm">N/A</div>
+            </div>
 
-          <div class="mt-4">
-            <div class="metric-label">Oxygen Saturation (SpO₂)</div>
-            <div class="metric-value" id="vSpO2">N/A</div>
-          </div>
+            <div class="metric-block">
+              <div class="metric-label">SpO₂</div>
+              <div class="metric-value" id="vSpO2">N/A</div>
+            </div>
 
-          <div class="mt-4">
-            <div class="metric-label">Blood Pressure (est.)</div>
-            <div class="metric-value small" id="vBp">N/A</div>
-            <div class="tiny">SBP/DBP</div>
-          </div>
+            <div class="metric-block">
+              <div class="metric-label">BP (est.)</div>
+              <div class="metric-value small" id="vBp">N/A</div>
+              <div class="tiny">SBP/DBP</div>
+            </div>
 
-          <div class="mt-4">
-            <div class="metric-label">Temperature (°C, est.)</div>
-            <div class="metric-value" id="vTemp">N/A</div>
-          </div>
+            <div class="metric-block">
+              <div class="metric-label">Temp (°C, est.)</div>
+              <div class="metric-value" id="vTemp">N/A</div>
+            </div>
 
-          <div class="mt-4 tiny">
-            <div>Last updated: <span id="vUpdated">—</span></div>
-            <div class="mt-1">Endpoint:
-              <code class="text-danger">{% if endpoint %}{{ endpoint }}{% else %}{% url 'api_latest' patient.public_code %}{% endif %}</code>
+            <div class="metric-block metric-span-2">
+              <div class="tiny mt-2">
+                <div>Last updated: <span id="vUpdated">—</span></div>
+                <div class="mt-1">Endpoint:
+                  <code class="text-danger">{% if endpoint %}{{ endpoint }}{% else %}{% url 'api_latest' patient.public_code %}{% endif %}</code>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -143,7 +239,7 @@
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-2">
             <div class="h5 fw-bold mb-0">Trend</div>
 
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100 w-md-auto">
               <div class="muted">Graph:</div>
               <select id="metricSelect" class="form-select" style="min-width: 260px;">
                 <option value="ir">IR</option>
@@ -173,12 +269,12 @@
               <thead>
                 <tr class="tiny">
                   <th style="min-width:170px;">Time</th>
-                  <th>IR</th>
-                  <th>Red</th>
+                  <th class="d-none d-md-table-cell">IR</th>
+                  <th class="d-none d-md-table-cell">Red</th>
                   <th>BPM</th>
                   <th>SpO₂</th>
-                  <th>BP</th>
-                  <th>Temp</th>
+                  <th class="d-none d-sm-table-cell">BP</th>
+                  <th class="d-none d-sm-table-cell">Temp</th>
                 </tr>
               </thead>
               <tbody id="historyBody">
@@ -253,13 +349,11 @@
   <div id="toast"></div>
 
 <script>
-  // ---------------- Back button (works even if user opened share link directly)
   function goBack(){
     if (window.history.length > 1) window.history.back();
     else window.location.href = "{% url 'home' %}";
   }
 
-  // ---------------- Drawer
   const drawer = document.getElementById("drawer");
   const drawerBackdrop = document.getElementById("drawerBackdrop");
   function openDrawer(){
@@ -273,7 +367,6 @@
     drawer.setAttribute("aria-hidden", "true");
   }
 
-  // ---------------- Toast + Copy helpers (works on http://192.168.x.x via fallback)
   function showToast(msg, ok=true){
     const t = document.getElementById("toast");
     if (!t) return;
@@ -285,13 +378,7 @@
   }
 
   async function copyText(text){
-    // 1) Modern clipboard (often blocked on insecure origins)
-    try{
-      await navigator.clipboard.writeText(text);
-      return true;
-    }catch(e){}
-
-    // 2) Fallback: textarea + execCommand
+    try{ await navigator.clipboard.writeText(text); return true; }catch(e){}
     try{
       const ta = document.createElement("textarea");
       ta.value = text;
@@ -304,9 +391,7 @@
       const ok = document.execCommand("copy");
       document.body.removeChild(ta);
       return ok;
-    }catch(e){
-      return false;
-    }
+    }catch(e){ return false; }
   }
 
   function flashCopyBtn(btn, ok){
@@ -317,7 +402,6 @@
     btn.classList.toggle("btn-danger", !ok);
     btn.classList.toggle("btn-outline-dark", false);
     btn.disabled = true;
-
     setTimeout(() => {
       btn.textContent = old;
       btn.classList.remove("btn-success","btn-danger");
@@ -337,30 +421,22 @@
   async function copyShare(btn){
     const raw = (document.getElementById("shareLink")?.innerText || "").trim();
     if (!raw) { showToast("No share link found.", false); return; }
-
-    // Ensure absolute URL (if template is /m/..., it becomes full)
     const full = new URL(raw, window.location.origin).href;
-
     const ok = await copyText(full);
     flashCopyBtn(btn, ok);
     showToast(ok ? "Share link copied ✅" : "Copy blocked — try long-press.", ok);
   }
 
-  // Make Share Monitor Link display as full URL (even if template gives /m/...)
   (function normalizeShareLink(){
     const el = document.getElementById("shareLink");
     if (!el) return;
     const raw = (el.innerText || "").trim();
     if (!raw) return;
-    try {
-      el.textContent = new URL(raw, window.location.origin).href;
-    } catch(e) {}
+    try { el.textContent = new URL(raw, window.location.origin).href; } catch(e) {}
   })();
 
-  // ---------------- Endpoint
   const ENDPOINT = "{% if endpoint %}{{ endpoint }}{% else %}{% url 'api_latest' patient.public_code %}{% endif %}";
 
-  // ---------------- UI refs
   const connDot = document.getElementById("connDot");
   const connText = document.getElementById("connText");
   const vUpdated = document.getElementById("vUpdated");
@@ -372,10 +448,8 @@
   const vBp = document.getElementById("vBp");
   const vTemp = document.getElementById("vTemp");
 
-  // ---------------- Data buffers
-  const MAX_POINTS = 60;      // chart points
-  const MAX_HISTORY = 20;     // table rows
-
+  const MAX_POINTS = 60;
+  const MAX_HISTORY = 20;
   let lastCreatedAt = null;
 
   const tLabels = [];
@@ -387,9 +461,8 @@
   const dataDBP = [];
   const dataTEMP = [];
 
-  const historyRows = []; // newest first objects
+  const historyRows = [];
 
-  // ---------------- Chart
   const ctx = document.getElementById("trendChart").getContext("2d");
 
   const COLOR = {
@@ -428,6 +501,14 @@
     }
   });
 
+  // Optional: hide legend on phones (cleaner)
+  function applyChartResponsive(){
+    const small = window.matchMedia("(max-width: 576px)").matches;
+    chart.options.plugins.legend.display = !small;
+    chart.update();
+  }
+  window.addEventListener("resize", applyChartResponsive);
+
   const metricSelect = document.getElementById("metricSelect");
   metricSelect.addEventListener("change", () => rebuildDatasets());
 
@@ -436,22 +517,8 @@
 
     if (m === "bp"){
       chart.data.datasets = [
-        {
-          label: "SBP (est.)",
-          data: dataSBP,
-          borderColor: COLOR.sbp,
-          backgroundColor: "rgba(239,68,68,0.10)",
-          tension: 0.25,
-          pointRadius: 0
-        },
-        {
-          label: "DBP (est.)",
-          data: dataDBP,
-          borderColor: COLOR.dbp,
-          backgroundColor: "rgba(37,99,235,0.10)",
-          tension: 0.25,
-          pointRadius: 0
-        }
+        { label: "SBP (est.)", data: dataSBP, borderColor: COLOR.sbp, backgroundColor: "rgba(239,68,68,0.10)", tension: 0.25, pointRadius: 0 },
+        { label: "DBP (est.)", data: dataDBP, borderColor: COLOR.dbp, backgroundColor: "rgba(37,99,235,0.10)", tension: 0.25, pointRadius: 0 }
       ];
     } else {
       const map = {
@@ -485,9 +552,7 @@
     try {
       const d = new Date(iso);
       return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    } catch(e){
-      return iso;
-    }
+    } catch(e){ return iso; }
   }
 
   function fmtFull(iso){
@@ -495,9 +560,7 @@
     try {
       const d = new Date(iso);
       return d.toLocaleString();
-    } catch(e){
-      return iso;
-    }
+    } catch(e){ return iso; }
   }
 
   function fmtNum(v){
@@ -525,12 +588,12 @@
       return `
         <tr class="tiny">
           <td>${fmtFull(r.created_at)}</td>
-          <td>${r.ir ?? "—"}</td>
-          <td>${r.red ?? "—"}</td>
+          <td class="d-none d-md-table-cell">${r.ir ?? "—"}</td>
+          <td class="d-none d-md-table-cell">${r.red ?? "—"}</td>
           <td>${r.bpm ?? "N/A"}</td>
           <td>${spo2}</td>
-          <td>${bp}</td>
-          <td>${temp}</td>
+          <td class="d-none d-sm-table-cell">${bp}</td>
+          <td class="d-none d-sm-table-cell">${temp}</td>
         </tr>
       `;
     }).join("");
@@ -545,7 +608,6 @@
         setConnected(false);
         return;
       }
-
       if (!data.created_at){
         setConnected(false);
         return;
@@ -553,24 +615,18 @@
 
       setConnected(true);
 
-      // Update left panel
       vIr.textContent = (data.ir != null) ? data.ir : "—";
       vRed.textContent = (data.red != null) ? data.red : "—";
       vBpm.textContent = (data.bpm != null) ? data.bpm : "N/A";
       vSpO2.textContent = (data.spo2 != null) ? `${Number(data.spo2).toFixed(1)} %` : "N/A";
-
-      if (data.sbp != null && data.dbp != null) vBp.textContent = `${data.sbp}/${data.dbp}`;
-      else vBp.textContent = "N/A";
-
+      vBp.textContent = (data.sbp != null && data.dbp != null) ? `${data.sbp}/${data.dbp}` : "N/A";
       vTemp.textContent = (data.temp != null) ? `${Number(data.temp).toFixed(1)} °C` : "N/A";
       vUpdated.textContent = data.created_at ? data.created_at : "—";
 
-      // Only append if it's a NEW reading timestamp
       if (lastCreatedAt !== data.created_at){
         lastCreatedAt = data.created_at;
 
         pushLimited(tLabels, fmtTime(data.created_at), MAX_POINTS);
-
         pushLimited(dataIR,   fmtNum(data.ir),   MAX_POINTS);
         pushLimited(dataRED,  fmtNum(data.red),  MAX_POINTS);
         pushLimited(dataBPM,  fmtNum(data.bpm),  MAX_POINTS);
@@ -599,8 +655,8 @@
     }
   }
 
-  // init
   rebuildDatasets();
+  applyChartResponsive();
   poll();
   setInterval(poll, 1000);
 </script>
