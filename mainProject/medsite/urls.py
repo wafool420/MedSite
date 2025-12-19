@@ -8,7 +8,6 @@ urlpatterns = [
 
     path("api/latest/p/<int:patient_id>/", views.api_latest_patient, name="api_latest_patient"),
     path("api/latest/<str:public_code>/", views.api_latest, name="api_latest"),
-
     path("stats/<int:patient_id>/", views.stats_page, name="stats"),
     path("patients/create/", views.create_patient, name="create_patient"),
     path("patients/<int:patient_id>/", views.patient_detail, name="patient_detail"),

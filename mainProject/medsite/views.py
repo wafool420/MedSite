@@ -32,7 +32,7 @@ def to_bool(v):
 
 # ---------------- pages ----------------
 def home(request):
-    esp32_url = getattr(settings, "ESP32_STATUS_URL", "").strip()
+    esp32_url = ""
 
     if request.user.is_authenticated:
         patients = Patient.objects.filter(
@@ -43,15 +43,23 @@ def home(request):
             doctor=request.user, is_archived=True
         ).order_by("-archived_at", "name")
 
+        esp32_url = (Patient.objects
+            .filter(doctor=request.user)
+            .exclude(last_esp32_url="")
+            .order_by("-last_esp32_seen")
+            .values_list("last_esp32_url", flat=True)
+            .first() or ""
+        )
+
         return render(request, "medsite/home.html", {
             "patients": patients,
             "archived_patients": archived_patients,
-            "esp32_url": esp32_url,   # ✅ add this back
+            "esp32_url": esp32_url,
         })
 
-    return render(request, "medsite/home.html", {
-        "esp32_url": esp32_url,       # ✅ also for guests
-    })
+    return render(request, "medsite/home.html", {"esp32_url": esp32_url})
+
+
 
 @login_required
 @require_POST
@@ -161,6 +169,13 @@ def api_ingest(request):
 
     try:
         patient = Patient.objects.get(public_code=code)
+        esp32_url = request.headers.get("X-ESP32-URL", "").strip()
+        if esp32_url:
+            patient.last_esp32_url = esp32_url
+            patient.last_esp32_seen = timezone.now()
+            patient.save(update_fields=["last_esp32_url", "last_esp32_seen"])
+
+
         if patient.is_archived:
             return JsonResponse({"detail": "Patient is archived"}, status=403)
     except Patient.DoesNotExist:

@@ -16,10 +16,13 @@
 
       <div class="d-flex align-items-center gap-3">
         {% if esp32_url %}
-            <a href="{{ esp32_url }}" target="_blank" class="small text-decoration-none">
-                ESP32 Page ↗
-            </a>
+          <a href="{{ esp32_url }}" target="_blank" class="small text-decoration-none">
+            ESP32 Page ↗
+          </a>
+        {% else %}
+          <span class="small text-muted">No ESP32 URL configured.</span>
         {% endif %}
+
 
         <a class="btn btn-dark" href="{% url 'create_patient' %}">+ Create Patient</a>
 

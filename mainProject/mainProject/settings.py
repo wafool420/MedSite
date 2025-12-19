@@ -18,7 +18,7 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1","192.168.1.11"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1","192.168.1.11","10.86.38.111"]
 render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
 if render_host:
     ALLOWED_HOSTS.append(render_host)
@@ -131,7 +131,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 DEVICE_API_KEY = os.getenv("DEVICE_API_KEY", "")
 
-ESP32_STATUS_URL = os.getenv("ESP32_STATUS_URL", "").strip()
+#ESP32_STATUS_URL = os.getenv("ESP32_STATUS_URL", "").strip()
 
 # settings.py
 LOGIN_URL = "/login/"

@@ -24,7 +24,8 @@ class Patient(models.Model):
     emergency_number = models.CharField(max_length=30, blank=True)
 
     public_code = models.CharField(max_length=20, unique=True, blank=True, editable=False)
-
+    last_esp32_url = models.URLField(blank=True)
+    last_esp32_seen = models.DateTimeField(null=True, blank=True)
     
 
     # ✅ archive
