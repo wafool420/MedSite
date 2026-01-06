@@ -18,7 +18,8 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1","192.168.1.11","10.86.38.111"]
+#ALLOWED_HOSTS = ["localhost", "127.0.0.1","192.168.1.11","10.86.38.111","10.21.115.111"]
+ALLOWED_HOSTS = ["*"]
 render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
 if render_host:
     ALLOWED_HOSTS.append(render_host)
